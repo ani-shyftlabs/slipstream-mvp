@@ -1,0 +1,239 @@
+HOTFIX BEFORE 4 PM DEMO — Tower Visualization + Markets Directory + Invite-by-Email. HARD CAP: 17 minutes. Demo at 4:00 PM Toronto.
+
+GOAL: Add three assets to the live MVP. Two pure-frontend (tower, directory) and one small enhancement to the existing invite flow (invite by email). No QA cycle — visual smoke test by Ani is the gate.
+
+PRIORITY ORDER if time runs short: A (Tower) > C (Invite by email) > B (Directory). Ship in that order; cut from the bottom if needed.
+
+DELIVERABLE A — TOWER VISUALIZATION
+====================================
+
+A new page at /broker/tower-demo showing a 5-layer tower placement, premium-styled and in-theme.
+
+A1. Create lib/data/demo-tower.ts:
+  export type TowerLayer = {
+    id: number;
+    name: string;
+    from: number;
+    to: number;
+    carrier: string | null;
+    premium: number | null;
+    status: "bound" | "firm" | "quoted" | "open";
+    bound_at?: string;
+  };
+
+  export const DEMO_TOWER = {
+    insured: "Project Sunrise Industrial Park",
+    class_of_business: "Property",
+    location: "Calgary, AB",
+    coverage_type: "Property + Business Interruption",
+    total_limit: 50_000_000,
+    layers: [
+      { id: 5, name: "Excess Layer 4 (Top)", from: 45_000_000, to: 50_000_000, carrier: null,                premium: null,    status: "open"   },
+      { id: 4, name: "Excess Layer 3",       from: 35_000_000, to: 45_000_000, carrier: "Allianz Canada",   premium: 95_000,  status: "quoted" },
+      { id: 3, name: "Excess Layer 2",       from: 20_000_000, to: 35_000_000, carrier: "Markel Canada",    premium: 175_000, status: "firm"   },
+      { id: 2, name: "Excess Layer 1",       from: 10_000_000, to: 20_000_000, carrier: "Liberty Mutual",   premium: 145_000, status: "bound", bound_at: "2026-05-04T14:22:00Z" },
+      { id: 1, name: "Primary",              from: 0,          to: 10_000_000, carrier: "AIG Insurance",    premium: 285_000, status: "bound", bound_at: "2026-05-02T10:08:00Z" },
+    ] as TowerLayer[],
+    activity: [
+      { ts: "2026-05-02T10:08:00Z", event: "Layer 1 Primary bound — AIG Insurance @ $285k" },
+      { ts: "2026-05-04T14:22:00Z", event: "Layer 2 Excess bound — Liberty Mutual @ $145k" },
+      { ts: "2026-05-06T11:40:00Z", event: "Layer 3 Excess firmed — Markel Canada @ $175k" },
+      { ts: "2026-05-07T16:05:00Z", event: "Layer 4 Excess quoted — Allianz Canada @ $95k (subject to firm)" },
+      { ts: "2026-05-08T09:30:00Z", event: "Layer 5 Top Layer remains open — 3 wholesalers in discussion" },
+    ],
+  };
+
+A2. Create components/quotes/tower-visualization.tsx (client component is fine; can also be server):
+  Visual spec — IN THEME, premium feel:
+  - Outer Card: shadow-mac-md, rounded-xl, p-6, bg-white
+  - Header row:
+      Left: small font-mono uppercase tracking-wide gold label "TOWER PLACEMENT"
+            Below: serif h2 with the insured name
+            Below that: font-sans text-sm text-ink/60 — "Property · Calgary, AB · $50M total · 5 layers"
+      Right: a circular completion pie or radial progress (use simple SVG): 80% complete (4 of 5 layers bound/firm/quoted, 1 open). Color: gold.
+  - Divider (border-silver) between header and tower
+  - Tower body: 5 stacked horizontal layer rows, top-down (Layer 5 highest, Layer 1 lowest — like a real tower)
+      Each row:
+        - 84px height, flex row, gap-4, items-center, py-2
+        - Left column (140px): Layer name in font-serif text-lg, range "$<from>M – $<to>M" in font-mono text-xs text-ink/60
+        - Middle column (flex-1): the BAR — relative-width visual representing this layer's slice of the tower.
+              The container is the FULL tower height (representing 0–$50M). Each layer's bar fills from its 'from' to its 'to' position.
+              Trick to make it feel like a tower: each row shows the same horizontal track (full width = $50M), and the layer's filled portion is positioned at its `from`–`to` slice.
+              Filled portion styling by status:
+                bound:  bg-success (#0D5C3A), text-white, with a small "✓ BOUND" badge inside
+                firm:   bg-navy (#0F2540), text-white, "FIRM" badge
+                quoted: bg-gold (#C49A2C), text-ink, "QUOTED" badge
+                open:   bg-silver/60 with diagonal-stripe pattern (CSS background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, #DDE4E9 6px, #DDE4E9 8px)) and "OPEN" badge in silver
+              Empty portion of the track: bg-silver/20
+              Add a subtle border-l-2 in navy at the bar's left edge
+        - Right column (220px): carrier name (font-sans semibold) + premium (font-mono text-sm) + status pill matching the bar color (small uppercase pill with rounded-full border + colored bg)
+  - Footer row below tower body:
+      Stats line: font-mono text-xs uppercase tracking-wide:
+      "5 LAYERS · 80% COMPLETE · $700K BOUND/FIRM/QUOTED PREMIUM · 1 LAYER OPEN"
+
+A3. Create app/(dashboard)/broker/tower-demo/page.tsx:
+  - Server component. Imports DEMO_TOWER, renders <TowerVisualization data={DEMO_TOWER} />
+  - Page header: serif h1 "Tower Placement" + subtitle "Project Sunrise Industrial Park"
+  - Below the visualization: a "Layer Detail" Card with a table — columns Layer | Carrier | Range | Premium | % of Tower | Status (status as colored pill). Right-align numeric columns. Use font-mono on numbers.
+  - Right panel content (within the page or as a sticky aside): "Activity" Card with 5 events from DEMO_TOWER.activity. Each row: small navy dot + timestamp (font-mono, relative time like "4 days ago" if you have a helper, else absolute) + event text (font-sans).
+
+A4. components/shared/sidebar-nav.tsx — add to broker nav array, AFTER existing items:
+  { href: "/broker/tower-demo", label: "Tower Demo" }
+
+DELIVERABLE B — MARKETS DIRECTORY
+==================================
+
+A new page at /broker/directory listing 50 carriers and MGAs. Broker-only sidebar link.
+
+B1. Create lib/data/markets-directory.ts with EXACTLY this content (50 entries):
+
+export type DirectoryEntry = {
+  id: string;
+  name: string;
+  type: 'MGA' | 'Insurer';
+  location: string;
+  primary_lines: string[];
+  min_premium: number;
+  max_limit: number;
+  appetite: 'Aggressive' | 'Moderate' | 'Selective';
+};
+
+export const DIRECTORY: DirectoryEntry[] = [
+  { id: "01", name: "AIG Insurance Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Casualty","Property","Construction"], min_premium: 50000, max_limit: 25000000, appetite: "Moderate" },
+  { id: "02", name: "Markel Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Specialty","D&O","Cyber"], min_premium: 75000, max_limit: 15000000, appetite: "Aggressive" },
+  { id: "03", name: "Trisura Group", type: "Insurer", location: "Toronto, ON", primary_lines: ["Casualty","Surety","Financial Lines"], min_premium: 100000, max_limit: 20000000, appetite: "Moderate" },
+  { id: "04", name: "Liberty Mutual Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Property","Casualty","Marine"], min_premium: 60000, max_limit: 30000000, appetite: "Moderate" },
+  { id: "05", name: "Sovereign General Insurance", type: "Insurer", location: "Montreal, QC", primary_lines: ["Property","Casualty","Environmental"], min_premium: 40000, max_limit: 12000000, appetite: "Selective" },
+  { id: "06", name: "Northbridge Insurance", type: "Insurer", location: "Toronto, ON", primary_lines: ["Commercial Property","Casualty","Professional Liability"], min_premium: 55000, max_limit: 18000000, appetite: "Moderate" },
+  { id: "07", name: "Aspen Canada", type: "MGA", location: "Toronto, ON", primary_lines: ["Cyber","D&O","E&O"], min_premium: 85000, max_limit: 10000000, appetite: "Aggressive" },
+  { id: "08", name: "Trinity Underwriting", type: "MGA", location: "Winnipeg, MB", primary_lines: ["Construction","Inland Marine","Equipment"], min_premium: 45000, max_limit: 8000000, appetite: "Moderate" },
+  { id: "09", name: "Stewart Specialty", type: "MGA", location: "Vancouver, BC", primary_lines: ["Professional Liability","E&O","Management Liability"], min_premium: 65000, max_limit: 12000000, appetite: "Moderate" },
+  { id: "10", name: "Signal Underwriting", type: "MGA", location: "Calgary, AB", primary_lines: ["Energy","Specialty Auto","Casualty"], min_premium: 120000, max_limit: 16000000, appetite: "Selective" },
+  { id: "11", name: "Tripoint Underwriting", type: "MGA", location: "Toronto, ON", primary_lines: ["Construction","Course of Construction","Property"], min_premium: 80000, max_limit: 14000000, appetite: "Moderate" },
+  { id: "12", name: "Echelon Insurance", type: "Insurer", location: "Montreal, QC", primary_lines: ["Specialty","Casualty","Life Sciences"], min_premium: 70000, max_limit: 11000000, appetite: "Moderate" },
+  { id: "13", name: "Beneva", type: "Insurer", location: "Quebec City, QC", primary_lines: ["Property","Casualty","Affinity"], min_premium: 35000, max_limit: 9000000, appetite: "Moderate" },
+  { id: "14", name: "Allmed Insurance", type: "MGA", location: "Toronto, ON", primary_lines: ["Healthcare","Professional Liability","D&O"], min_premium: 90000, max_limit: 7000000, appetite: "Aggressive" },
+  { id: "15", name: "Lionsgate Insurance", type: "MGA", location: "Vancouver, BC", primary_lines: ["Marine","Inland Marine","Property"], min_premium: 55000, max_limit: 13000000, appetite: "Moderate" },
+  { id: "16", name: "K&K Insurance", type: "MGA", location: "Calgary, AB", primary_lines: ["Recreational","Affinity","Specialty Auto"], min_premium: 40000, max_limit: 6000000, appetite: "Aggressive" },
+  { id: "17", name: "Wynward Specialty", type: "MGA", location: "Toronto, ON", primary_lines: ["Property","Casualty","Marine"], min_premium: 75000, max_limit: 11000000, appetite: "Moderate" },
+  { id: "18", name: "Mosaic Insurance", type: "MGA", location: "Halifax, NS", primary_lines: ["Marine","Environmental","Aviation"], min_premium: 95000, max_limit: 9000000, appetite: "Selective" },
+  { id: "19", name: "Volante Specialty", type: "MGA", location: "Montreal, QC", primary_lines: ["Casualty","D&O","Cyber"], min_premium: 110000, max_limit: 15000000, appetite: "Aggressive" },
+  { id: "20", name: "Travelers Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Commercial Property","Casualty","Management Liability"], min_premium: 45000, max_limit: 22000000, appetite: "Moderate" },
+  { id: "21", name: "Munich Re Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Reinsurance","Property","Casualty"], min_premium: 150000, max_limit: 50000000, appetite: "Selective" },
+  { id: "22", name: "Intact Insurance", type: "Insurer", location: "Toronto, ON", primary_lines: ["Property","Casualty","Auto"], min_premium: 30000, max_limit: 18000000, appetite: "Moderate" },
+  { id: "23", name: "Aviva Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Commercial Property","Casualty","Financial Lines"], min_premium: 50000, max_limit: 20000000, appetite: "Moderate" },
+  { id: "24", name: "Arch Underwriting", type: "MGA", location: "Vancouver, BC", primary_lines: ["Property","Casualty","Specialty Lines"], min_premium: 85000, max_limit: 17000000, appetite: "Aggressive" },
+  { id: "25", name: "Pacific Specialty Underwriters", type: "MGA", location: "Vancouver, BC", primary_lines: ["Construction","Environmental","Professional Liability"], min_premium: 65000, max_limit: 10000000, appetite: "Moderate" },
+  { id: "26", name: "Northway Specialty", type: "MGA", location: "Winnipeg, MB", primary_lines: ["Casualty","Specialty Auto","Management Liability"], min_premium: 55000, max_limit: 8500000, appetite: "Moderate" },
+  { id: "27", name: "Alberta Risk Partners", type: "MGA", location: "Calgary, AB", primary_lines: ["Energy","Property","Casualty"], min_premium: 125000, max_limit: 18000000, appetite: "Selective" },
+  { id: "28", name: "Eastern Specialty Group", type: "MGA", location: "Halifax, NS", primary_lines: ["Marine","Aviation","Professional Liability"], min_premium: 100000, max_limit: 12000000, appetite: "Moderate" },
+  { id: "29", name: "Crawford & Company (Canada)", type: "MGA", location: "Toronto, ON", primary_lines: ["Claims Management","Specialty","Professional Services"], min_premium: 70000, max_limit: 14000000, appetite: "Moderate" },
+  { id: "30", name: "Trafalgar Insurance Group", type: "Insurer", location: "Toronto, ON", primary_lines: ["Travel","Affinity","Specialty"], min_premium: 25000, max_limit: 5000000, appetite: "Aggressive" },
+  { id: "31", name: "Centaur Insurance", type: "MGA", location: "Montreal, QC", primary_lines: ["D&O","E&O","Cyber"], min_premium: 95000, max_limit: 13000000, appetite: "Moderate" },
+  { id: "32", name: "Westside Insurance Solutions", type: "MGA", location: "Vancouver, BC", primary_lines: ["Commercial Property","Casualty","Inland Marine"], min_premium: 60000, max_limit: 11000000, appetite: "Moderate" },
+  { id: "33", name: "Great West Life (Specialty)", type: "Insurer", location: "Winnipeg, MB", primary_lines: ["Life Sciences","Healthcare","Professional Liability"], min_premium: 80000, max_limit: 16000000, appetite: "Selective" },
+  { id: "34", name: "Onyx Specialty Underwriters", type: "MGA", location: "Toronto, ON", primary_lines: ["Cyber","Management Liability","Technology"], min_premium: 110000, max_limit: 12000000, appetite: "Aggressive" },
+  { id: "35", name: "Pinnacle Specialty Insurance", type: "MGA", location: "Calgary, AB", primary_lines: ["Construction","Property","Environmental"], min_premium: 75000, max_limit: 14000000, appetite: "Moderate" },
+  { id: "36", name: "Summit Risk Solutions", type: "MGA", location: "Toronto, ON", primary_lines: ["Professional Liability","D&O","Management Liability"], min_premium: 85000, max_limit: 10000000, appetite: "Moderate" },
+  { id: "37", name: "Guardian Specialty Underwriting", type: "MGA", location: "Montreal, QC", primary_lines: ["Casualty","Property","Aviation"], min_premium: 70000, max_limit: 11000000, appetite: "Moderate" },
+  { id: "38", name: "Chubb Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Property","Casualty","Professional Liability"], min_premium: 100000, max_limit: 35000000, appetite: "Aggressive" },
+  { id: "39", name: "XL Catlin Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Property","Casualty","Specialty"], min_premium: 120000, max_limit: 40000000, appetite: "Moderate" },
+  { id: "40", name: "Everest Insurance Canada", type: "Insurer", location: "Toronto, ON", primary_lines: ["Property","Casualty","Excess Liability"], min_premium: 90000, max_limit: 28000000, appetite: "Selective" },
+  { id: "41", name: "Clearpoint Underwriting", type: "MGA", location: "Vancouver, BC", primary_lines: ["E&O","Professional Liability","Management Liability"], min_premium: 65000, max_limit: 9000000, appetite: "Aggressive" },
+  { id: "42", name: "Apex Specialty Insurance", type: "MGA", location: "Toronto, ON", primary_lines: ["Construction","Environmental","Inland Marine"], min_premium: 80000, max_limit: 13000000, appetite: "Moderate" },
+  { id: "43", name: "Catalyst Underwriting Group", type: "MGA", location: "Calgary, AB", primary_lines: ["Energy","Casualty","Property"], min_premium: 135000, max_limit: 19000000, appetite: "Selective" },
+  { id: "44", name: "Beacon Risk Management", type: "MGA", location: "Halifax, NS", primary_lines: ["Marine","Property","Casualty"], min_premium: 85000, max_limit: 10000000, appetite: "Moderate" },
+  { id: "45", name: "Vertex Insurance Solutions", type: "MGA", location: "Montreal, QC", primary_lines: ["Cyber","D&O","Technology"], min_premium: 120000, max_limit: 14000000, appetite: "Aggressive" },
+  { id: "46", name: "Granite Specialty Underwriters", type: "MGA", location: "Toronto, ON", primary_lines: ["Professional Liability","Casualty","Management Liability"], min_premium: 70000, max_limit: 11000000, appetite: "Moderate" },
+  { id: "47", name: "Orbit Insurance Partners", type: "MGA", location: "Vancouver, BC", primary_lines: ["Property","Marine","Environmental"], min_premium: 60000, max_limit: 12000000, appetite: "Moderate" },
+  { id: "48", name: "Zenith Specialty Risk", type: "MGA", location: "Winnipeg, MB", primary_lines: ["Construction","Specialty Auto","Casualty"], min_premium: 50000, max_limit: 9000000, appetite: "Aggressive" },
+  { id: "49", name: "Prime Insurance Group", type: "MGA", location: "Toronto, ON", primary_lines: ["Affinity","Recreational","Specialty"], min_premium: 40000, max_limit: 7000000, appetite: "Aggressive" },
+  { id: "50", name: "Longitude Underwriting", type: "MGA", location: "Multi-province", primary_lines: ["Cyber","Management Liability","Professional Liability"], min_premium: 100000, max_limit: 15000000, appetite: "Moderate" },
+];
+
+B2. Create app/(dashboard)/broker/directory/page.tsx:
+  - Server component (fine to import the constant directly).
+  - Page header: serif h1 "Markets Directory" + subtitle "50 specialty markets across Canada · 22 Insurers · 28 MGAs" (compute counts at top of file).
+  - Filter bar (client component if you want, but optional — can ship without): three pills "All" / "Insurers" / "MGAs" — purely visual is fine if you don't have time for client filtering.
+  - List as a TABLE for density (rounded-xl shadow-mac-md card around it):
+      Columns:
+        Name (font-serif, semibold)
+        Type (pill — Insurer = navy bg / white text, MGA = gold bg / white text)
+        Location (font-mono text-xs)
+        Lines (truncated chip list — show first 2 lines as pills bg-silver/60, "+1" if more)
+        Premium Floor ($XXk, font-mono text-right)
+        Max Limit ($XXM, font-mono text-right)
+        Appetite (small text — Aggressive = green, Moderate = navy, Selective = gold)
+      Sticky table header. Hover row: bg-silver/20.
+  - Format helpers inline: `$${(n/1000).toFixed(0)}k` for premiums under 1M; `$${(n/1_000_000).toFixed(1).replace('.0','')}M` for limits.
+
+B3. components/shared/sidebar-nav.tsx — add to broker nav array (AFTER Tower Demo):
+  { href: "/broker/directory", label: "Markets Directory" }
+  This should be visible ONLY in broker's nav (NOT MGA, NOT Insurer).
+
+DELIVERABLE C — INVITE PARTY BY EMAIL
+======================================
+
+Augment the existing Invite Party modal so the broker can invite ANY email address — not just users from the existing demo accounts. If the email matches an existing profile, use it. If not, create a stub Supabase auth user (email_confirm:true) with role in user_metadata; the existing on-auth-users-insert trigger creates the profile row automatically; then insert the parties row + activity event normally.
+
+C1. Update components/quotes/invite-party-modal.tsx (or whatever the existing modal file is — find it first, don't rename it):
+  - Inside the modal, add a small Tabs component (shadcn Tabs is fine; if not installed, use a simple two-button toggle with state).
+  - Tab 1 label: "From Directory" — renders the EXISTING dropdown UI (don't change behavior).
+  - Tab 2 label: "By Email" — renders a new form:
+      Email input (type="email", required, placeholder "carrier@example.com")
+      Role select (radio or select): MGA / Insurer
+      Optional name input (text, placeholder "Jane Smith — AIG", placeholder hint, can be left blank)
+      "Send Invite" button (Slipstream styling, navy primary)
+  - On submit of Tab 2: call the new server action invitePartyByEmail (below). On success: close modal, refresh page, success toast "Invited <email> as <role>." On error: inline error message in the form (don't toast errors that point to a specific field).
+
+C2. Add a new server action: lib/actions/parties.ts → invitePartyByEmail({ deal_room_id, email, role, full_name })
+  Implementation sketch:
+    - Validate: caller is broker for this deal_room (existing pattern); email is valid; role in ['mga','insurer'].
+    - Use SUPABASE service-role admin client (createClient with service_role key) to:
+        Step 1: Look up profile by email — `from('profiles').select('id, role').eq('email', email).maybeSingle()`
+        Step 2A (existing user): if profile found, use that profile.id.
+        Step 2B (new user): admin.createUser({ email, email_confirm: true, password: <random 16-char>, user_metadata: { role, full_name: full_name || email.split('@')[0] } }).
+            The existing handle_new_user trigger creates the profile row. After admin.createUser returns, fetch the new profile.id by email (or use the returned auth user id; profiles.id should equal auth.users.id per the trigger).
+            If for any reason the trigger didn't fire (race), do an explicit insert into profiles with the auth user id, email, role, full_name.
+    - Insert parties row: { deal_room_id, party_user_id: <profile.id>, role, invited_at: now() }.
+        Use upsert-or-ignore semantics (avoid duplicate party rows for the same email+room). If a unique constraint fires, return a friendly "Already invited" error.
+    - Insert activities row: event_type 'invited_by_email', event_data { email, role, full_name }.
+    - Update deal_room status from 'draft' to 'active' if not already.
+    - Return { success: true, party_id, was_new_user: bool }.
+
+C3. RLS implication: profiles RLS allows users to read their own row + profiles of users sharing a deal room. Adding a new profile then immediately adding them to a party for the broker's deal room means subsequent reads work. The admin client bypasses RLS for the writes in step 2B; that's the right pattern (we use this in earlier cycles for seeding). DO NOT loosen the base RLS policies.
+
+C4. UI nice-to-have (only if time permits): show the new party in the Parties list on the deal room detail page using the email if no profile name is set. The existing list query likely joins profiles.full_name; fall back to profiles.email when full_name is null.
+
+C5. NO migration is required. We're using existing tables.
+
+C6. Test inside Claude Code (no qa-senior cycle): after deploy, hit the live URL manually:
+  - Sign in as broker
+  - Open an existing draft deal room (Westbrook is fresh)
+  - Click Invite Party → switch to "By Email" tab → enter newcarrier@example.com → role MGA → submit
+  - Expect: modal closes, success toast, parties list now shows the new email
+  - Activity feed shows "invited_by_email" event
+
+EXECUTION
+==========
+
+1. Build all files above (deliverables A, B, and C).
+2. npm run build — must be green.
+3. git add -A && git commit -m "hotfix: tower viz + markets directory + invite by email"
+4. npx vercel --prod
+5. Smoke test:
+   - curl https://slipstream-mvp.vercel.app/broker/tower-demo (200 or 307)
+   - curl https://slipstream-mvp.vercel.app/broker/directory (same)
+   - For invite-by-email: deploy is enough; visual test will be done by Ani.
+6. Report the live URLs in chat. Do NOT spawn qa-senior — visual check by Ani is the gate, time is short.
+
+DO NOT:
+- Touch the existing database schema, RLS policies, or chatbot
+- Add a tower mode toggle to existing deal rooms
+- Run a formal QA cycle
+- Wire directory entries into the existing Invite Party flow (that's a separate question — invite-by-email above is the only invite-flow change today)
+- Add filtering JavaScript to the directory if it adds risk
+
+If anything in scope is unclear, default to the simpler version. Ship over polish.
+
+Time check at start, time check at deploy. If you're past T+15 min and the deploy hasn't finished, ship whatever builds. Priority order if cuts are needed: Tower > Invite-by-Email > Directory.
