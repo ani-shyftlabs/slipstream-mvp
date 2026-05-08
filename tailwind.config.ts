@@ -58,13 +58,29 @@ const config: Config = {
       },
       fontFamily: {
         serif: ["var(--font-serif)", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: [
+          "var(--font-sans)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
+        xl: "12px",
         lg: "0.5rem",
         md: "0.375rem",
         sm: "0.25rem",
+      },
+      boxShadow: {
+        "mac-sm":
+          "0 1px 2px rgba(15,37,64,0.05), 0 1px 3px rgba(15,37,64,0.08)",
+        "mac-md":
+          "0 2px 4px rgba(15,37,64,0.06), 0 4px 12px rgba(15,37,64,0.08)",
+        "mac-lg":
+          "0 4px 8px rgba(15,37,64,0.08), 0 8px 24px rgba(15,37,64,0.12)",
       },
       transitionDuration: {
         DEFAULT: "150ms",

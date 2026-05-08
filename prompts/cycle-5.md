@@ -1,95 +1,199 @@
-# Cycle 5 — Polish + Smoke Test
+# Cycle 5 — Polish + macOS Feel + Slipstream Assistant Chatbot
 
-**Time budget:** 20 min from cycle start (HARD CAP)
-**Goal:** Demo accounts pre-logged-in, sample data seeded so screens aren't empty, loading/empty/error states cleaned up, final smoke test on the live URL.
-**Gate:** A clean walkthrough on the live URL on both laptop and phone.
+**Time budget:** 75 min from cycle start (HARD CAP — 4 PM demo is firm)
+**Goal:** Demo-ready: 3 polished seeded rooms (replacing the QA-leftover test room), macOS visual refinements, deterministic Slipstream Assistant chatbot, loading/empty/error states, final smoke test.
+**Gate:** Live URL clean walkthrough. Chatbot answers 5 supported questions correctly. UI reads premium and macOS-influenced.
 
 ---
 
 ## Paste the following into Claude Code
 
 ```
-Starting Cycle 5 — final polish and smoke test. Cycle 4 is green; full demo flow works.
+Starting Cycle 5 — final polish + macOS feel + Slipstream Assistant chatbot. Cycle 4 is green; full demo flow works.
 
-CYCLE 5 GOAL: A demo-ready live URL. Screens are not empty, loading states are graceful, demo accounts work first try.
+ORCHESTRATION NOTE: SendMessage tool is not available in this Claude Code session (same as prior cycles). Run Path 1: you (Claude Code main thread) execute directly, parallelizing with the Task tool only where genuinely independent. Spawn qa-senior as a single Task subagent at the end against the live URL.
 
-CYCLE 5 GATE (qa-senior verifies):
-1. Live URL has 3 sample deal rooms in different states (one Draft, one Active with quote, one Closed) so dashboards aren't empty for casual demo of "scrolling around"
-2. Empty states have friendly copy, not blank screens
-3. Loading skeletons appear during route transitions (or at least no UI flicker)
-4. Error toasts work for at least one failure path
-5. The bind+export+close buttons all work without errors
-6. The full demo flow (create→invite→quote→bind→close) runs in under 4 minutes with no errors
-7. Live URL works on iPhone Safari (basic responsiveness — sidebar can be hidden, content stacks)
-8. Three demo accounts open in three browser tabs, all logged in, ready to demo
+UNATTENDED RUN: Ani has a UX call from 2:30–3:30 PM Toronto. Don't pause for input mid-cycle unless absolutely blocking. Default to the established workarounds (admin client, SECURITY DEFINER) over asking for migration paste.
 
-Spawn a SMALLER crew for polish — pm-lead, backend-2 (extra seed data), ui-1 + ui-2 (polish), qa-senior. ONE message.
+CYCLE 5 GOAL — three deliverables:
+A. WIPE + RESEED demo data
+B. macOS-feel UI refinements
+C. Slipstream Assistant chatbot (deterministic Q&A)
 
-AGENTS TO SPAWN:
+PLUS standard polish (loading skeletons, empty states, error toasts, mobile sanity check).
 
-1. name: "pm-lead", subagent_type: "hierarchical-coordinator"
-   Prompt: |
-     You are pm-lead. Cycle 5 is polish + final smoke test. Read CLAUDE.md.
-     Sequence: backend-2 seeds extra demo data → ui-1 + ui-2 polish in parallel → qa-senior final dry run on live URL → human-facing summary.
-     Stop rule: 20 min elapsed since cycle start = HARD STOP. Whatever is done is done. Better to demo what works.
+================================================================
+DELIVERABLE A — WIPE + RESEED DEMO DATA
+================================================================
 
-2. name: "backend-2", subagent_type: "backend-dev"
-   Prompt: |
-     You are backend-2. Wait for [ASSIGN].
-     Extend supabase/seed.sql (or write a new seed-extras.ts script) to insert:
-     - 3 sample deal rooms owned by broker@demo.com:
-       * "Westbrook Industrial Holdings Ltd" — Property — Ontario — $25M — status='draft'
-       * "Cresthill Industries Ltd" — Cyber — Quebec — $10M — status='active' — with mga@demo.com invited and one quote submitted (premium 145000, status 'submitted')
-       * "Northgate Group Inc" — D&O — Alberta — $7.5M — status='closed' — with mga@demo.com invited, quote submitted (premium 95000, status 'won'), insurer@demo.com invited, full activity log
-     - All three have realistic activity log entries (created, invited, quote_submitted, bound, closed where applicable)
-     Run the seed script against the live Supabase project.
-     SendMessage pm-lead [DONE] with confirmation of row counts.
+Wipe ALL existing rows in: deal_rooms, parties, quotes, activities. (Keep profiles — the 3 demo accounts.)
 
-3. name: "ui-1", subagent_type: "coder"
-   Prompt: |
-     You are ui-1. Wait for [ASSIGN].
-     Polish:
-     a) Add Suspense boundaries with loading.tsx files at /(dashboard)/broker, /mga, /insurer routes — render a skeleton card grid
-     b) Empty states: if dashboard list is empty, show a centered card with serif heading "No deal rooms yet" + DM Sans subtitle + CTA. Use brand colors.
-     c) Add hover transitions to deal-room cards (subtle shadow lift, 200ms)
-     d) Verify topbar is responsive: at width < 768px, hide the breadcrumb; at < 640px, hide the role badge text (keep the dot)
-     e) Verify sidebar collapses (hamburger toggle) on mobile
-     SendMessage pm-lead [DONE].
+Then seed exactly 3 deal rooms owned by broker@demo.com, with realistic timestamps spread across the past 7 days. Use the service-role admin client.
 
-4. name: "ui-2", subagent_type: "coder"
-   Prompt: |
-     You are ui-2. Wait for [ASSIGN].
-     Polish:
-     a) Add error.tsx in /(dashboard) showing a friendly "Something went wrong" with a Retry button
-     b) Form validation errors styled in error red with DM Sans
-     c) Success toasts on create / invite / submit / bind / close (shadcn useToast)
-     d) Make sure the export-compliance JSON download has a useful filename: slipstream-<insured-slug>-<date>.json
-     e) Confirmation modals for destructive actions (close deal room) have brand-styled buttons (Cancel = silver outline, Confirm = navy primary)
-     SendMessage pm-lead [DONE].
+ROOM 1 — "Westbrook Industrial Holdings Ltd"
+  - class_of_business: Property
+  - location: Ontario
+  - coverage_amount: 25000000
+  - coverage_type: Property
+  - notes: "Manufacturing facility, $25M TIV, looking for property + business interruption coverage. New build 2023."
+  - status: draft
+  - parties: none
+  - quotes: none
+  - activities: 1 ("created" by broker, ~6 days ago)
 
-5. name: "qa-senior", subagent_type: "tester"
-   Prompt: |
-     You are qa-senior. Wait for [ASSIGN].
-     Final dry run on the live URL:
-     1. Hard refresh in three incognito tabs; sign in as broker / mga / insurer
-     2. From scratch, create new deal room "Demo Co" → invite mga + insurer → submit quote as MGA → review + bind as broker → export JSON → close
-     3. Time the flow: target < 4 minutes
-     4. Check on iPhone Safari (or use Chrome devtools mobile emulation): all three dashboards render without horizontal scroll
-     5. Check the seeded deal rooms appear in broker dashboard with correct statuses
-     6. Verify each demo account works on first sign-in
-     7. List any rough edges (typos, alignment issues) for human to decide whether to fix or accept
-     SendMessage pm-lead [QA-PASS] with full demo recording transcript, or [QA-FAIL] with list of demo-blockers.
+ROOM 2 — "Cresthill Industries Ltd"
+  - class_of_business: Cyber
+  - location: Quebec
+  - coverage_amount: 10000000
+  - coverage_type: Cyber
+  - notes: "Mid-market manufacturer, prior cyber incident in 2024 (resolved). Seeking $10M aggregate with ransomware sub-limit."
+  - status: active
+  - parties: mga@demo.com as MGA (~3 days ago)
+  - quotes: 1 from MGA (premium 145000, deductible 25000, coverage_limit 10000000, terms "12-month standalone Cyber, $5M ransomware sub-limit, includes BI 24-hr waiting period", status submitted, ~2 days ago)
+  - activities: created (~3 days ago), invited mga (~3 days ago), quote_submitted (~2 days ago)
 
-After spawning, SendMessage pm-lead [ASSIGN] "Begin Cycle 5 — Polish + Smoke Test".
+ROOM 3 — "Northgate Group Inc"
+  - class_of_business: D&O
+  - location: Alberta
+  - coverage_amount: 7500000
+  - coverage_type: D&O
+  - notes: "Private oil & gas services company, board of 7. First-time D&O placement."
+  - status: closed
+  - parties: mga@demo.com as MGA, insurer@demo.com as Insurer
+  - quotes: 1 from MGA (premium 95000, deductible 50000, coverage_limit 7500000, terms "12-month Private Co D&O, includes Side A excess", status won, winning quote)
+  - activities: created → invited mga → invited insurer → quote_submitted → bound → closed (full chronology, ~7 days ago to ~1 day ago)
+  - winning_quote_id set on the deal_room
+
+Write scripts/seed-demo-rooms.mjs to do this idempotently (delete-then-insert). Run it. Verify counts.
+
+================================================================
+DELIVERABLE B — MACOS-FEEL UI REFINEMENTS
+================================================================
+
+1. tailwind.config.ts — extend boxShadow:
+   'mac-sm': '0 1px 2px rgba(15,37,64,0.05), 0 1px 3px rgba(15,37,64,0.08)'
+   'mac-md': '0 2px 4px rgba(15,37,64,0.06), 0 4px 12px rgba(15,37,64,0.08)'
+   'mac-lg': '0 4px 8px rgba(15,37,64,0.08), 0 8px 24px rgba(15,37,64,0.12)'
+
+2. tailwind.config.ts — extend borderRadius:
+   'xl': '12px' (override default if needed)
+
+3. components/ui/card.tsx — change default shadow to shadow-mac-md, rounded to rounded-xl, add hover:shadow-mac-lg transition-shadow duration-200
+
+4. app/(dashboard)/layout.tsx topbar — add backdrop-blur-md + bg-navy/90 (semi-transparent navy) for frosted-glass effect. Make it sticky top-0 with z-50.
+
+5. app/globals.css — add `html { scroll-behavior: smooth; }`
+
+6. app/layout.tsx — extend the font stack on <body> to include `-apple-system, BlinkMacSystemFont` before the DM Sans variable (so the system feel shows when fonts aren't loaded yet, and as a fallback).
+
+7. Deal room rows on broker/mga/insurer dashboards — add `hover:-translate-y-0.5 hover:shadow-mac-lg transition-all duration-200` to the row Link element.
+
+8. Buttons — increase shadow to shadow-mac-sm by default, hover:shadow-mac-md.
+
+================================================================
+DELIVERABLE C — SLIPSTREAM ASSISTANT CHATBOT
+================================================================
+
+Reference: /Users/anirudhkapoor/Documents/Claude/Projects/Slipstream/Demo/Slipstream_Demo_v2.html lines 942–1000 (copilot-trigger, copilot-overlay, copilot-messages, copilot-input). Port the structure, restyle with Tailwind brand tokens. DO NOT pull demo CSS.
+
+UI components:
+- components/assistant/assistant-trigger.tsx — floating button bottom-right (fixed bottom-6 right-6 z-40), 56px × 56px, gold bg, white chat icon (use lucide-react MessageCircle), shadow-mac-lg, hover lift. Only renders inside dashboard layout (not on landing/login).
+- components/assistant/assistant-panel.tsx — modal/sheet that slides up from bottom-right when trigger is clicked. 380px × 560px on desktop, full-screen on mobile. Header: "Slipstream Assistant" (font-serif), close X button. Body: scrollable message list. Footer: input + send button.
+- components/assistant/message-bubble.tsx — user messages right-aligned with bg-navy text-white rounded-2xl px-4 py-2. Assistant messages left-aligned with bg-silver/40 text-ink rounded-2xl px-4 py-2. Avatar dot for assistant (gold).
+
+Wire it into app/(dashboard)/layout.tsx so it renders on all dashboard routes after login.
+
+Chat behavior:
+- On mount, show welcome assistant message: "Hi <full_name or email>, I'm your Slipstream Assistant. Ask me about your deal rooms or quotes."
+- User types question, clicks Send (or Enter)
+- UI shows "..." typing indicator briefly (300ms artificial delay for feel)
+- Calls server action askAssistant(question)
+- Renders the assistant's response
+- Maintains client-side history within the session (resets on refresh — that's fine)
+
+Server action: lib/actions/assistant.ts → askAssistant(question: string) returns { answer: string }
+Implementation:
+  - Get user via getCurrentProfile(); if no auth, return { answer: "Please sign in." }
+  - Lowercase + trim the question
+  - Match against patterns IN ORDER (first match wins):
+
+  Pattern 1 — list deal rooms:
+    /show.*deal rooms?|what deal rooms?|list.*(deals?|rooms?)|my deal rooms?/i
+    → Use createClient (RLS-scoped); for broker, query deal_rooms broker owns; for mga/insurer, query rooms they're a party in.
+    → Response: "You have N deal rooms:\n• Insured Name 1 (Status1) — $X coverage\n• Insured Name 2 (Status2) — $X coverage\n..."
+    → If 0 rooms: "You don't have any deal rooms yet. Brokers can create one from the dashboard."
+
+  Pattern 2 — pending/active count:
+    /how many.*(active|pending|open|live)|active.*(quotes?|rooms?)|open quotes?/i
+    → For broker: count of deal_rooms where status='active'; count of quotes where status='submitted' on those rooms.
+    → For mga: count of own quotes status='submitted'.
+    → For insurer: count of bound deals.
+    → Response (broker): "You have 1 active deal room with 1 quote awaiting your review."
+    → Response (mga): "You have 1 quote currently submitted, awaiting review."
+
+  Pattern 3 — status of [name]:
+    /status of (.+?)$/i with capture group
+    → Fuzzy match on deal_rooms.insured_name (ILIKE %captured%); take first match.
+    → Response: "<Insured Name> is currently <status>. <party_count> parties involved. Created <relative time>."
+    → No match: "I couldn't find a deal room matching '<captured>'. Try 'show my deal rooms' to see them."
+
+  Pattern 4 — latest/most recent quote:
+    /(latest|most recent|newest|last) quote/i
+    → For broker: most recent quote across their rooms; for mga: their own most recent.
+    → Response: "Your most recent quote: $<premium> on <Insured Name>, submitted <relative time>, status <status>."
+    → No quotes: "No quotes yet."
+
+  Pattern 5 — help / what can you do:
+    /help|what can you|capabilities/i
+    → Response: "I can help with your deal rooms and quotes. Try: 'show my deal rooms', 'how many active quotes', 'status of Cresthill', 'latest quote'."
+
+  Default fallback (no pattern matches):
+    Response: "I can help with deal rooms and quotes specifically. Try: 'show my deal rooms', 'how many active quotes', 'status of <insured name>', or 'latest quote'."
+
+Format helper: include lib/utils/relative-time.ts (e.g., "2 days ago", "1 hour ago") — use a tiny implementation, no extra deps unless date-fns is already installed.
+
+Demo bonus content:
+- Add a "?" pill near the trigger on first visit that says "Ask me about your deal rooms" — auto-dismisses after 4 seconds or on first interaction. Localstorage flag to not show again that session.
+
+================================================================
+STANDARD POLISH (do these too)
+================================================================
+
+1. Add app/(dashboard)/loading.tsx skeleton (cards with bg-silver/40 animated pulse)
+2. Add app/(dashboard)/error.tsx with friendly retry button
+3. Confirm empty states render properly (e.g., MGA with no invitations sees a useful placeholder, not a blank screen)
+4. Toast on successful submit/bind/close (using the sonner Toaster already wired in Cycle 1)
+5. Quick mobile sanity: at 375px width, sidebar collapses (hidden, hamburger optional), main content stacks. Topbar role badge stays visible.
+
+================================================================
+CYCLE 5 GATE (qa-senior verifies)
+================================================================
+
+1. DB state: exactly 3 deal_rooms (Westbrook, Cresthill, Northgate). No leftover test data. Counts match: 2 parties on Cresthill+Northgate combined? (1 MGA on Cresthill, 1 MGA + 1 Insurer on Northgate = 3 total). 2 quotes total (Cresthill submitted + Northgate won). Activities chronologically realistic.
+2. Broker dashboard shows the 3 rooms with the correct statuses (Draft, Active, Closed) and correct insured names.
+3. macOS UI: topbar has frosted-glass effect (backdrop-blur visible when scrolling content beneath it). Cards use shadow-mac-md, rounded-xl. Hover on a deal-room row visibly translates up + shadow grows.
+4. Chatbot trigger button visible bottom-right on /broker/dashboard. Clicking opens the panel.
+5. Welcome message shows the user's name (e.g., "Hi Demo Broker, I'm your Slipstream Assistant...").
+6. Type "show my deal rooms" → response lists Westbrook, Cresthill, Northgate with statuses and coverage.
+7. Type "how many active quotes" → response gives a real count.
+8. Type "status of Cresthill" → response says "active" with party count.
+9. Type "latest quote" → response gives Cresthill MGA quote details (since it's the newest submitted).
+10. Type "what's the weather" → fallback message appears.
+11. Loading skeleton shows briefly during route transitions.
+12. Live deploy succeeds. Console has no errors.
+
+When all 12 PASS: report Cycle 5 GREEN with the live URL, summary of all 3 deliverables, and a one-line "ready for 4 PM demo" line.
 ```
 
 ---
 
 ## After Cycle 5
 
-The build is done. At 3:50 PM:
-1. Open three browser tabs, sign in as each demo account
-2. Have the live URL bookmarked and ready in all tabs
-3. Take a deep breath. You have a 10-minute buffer to 4:00 PM.
+Personal final dry-run:
+1. Open https://slipstream-mvp.vercel.app — landing page
+2. Sign in as broker → see 3 seeded rooms, navy frosted topbar, gold chatbot trigger
+3. Open chatbot, ask 4–5 questions — confirm answers are accurate
+4. Sign in as mga (separate tab) → see Cresthill + Northgate
+5. Sign in as insurer (separate tab) → see Northgate only
 
-If something is broken at 3:50 PM, demo what works. Don't try to hot-fix during the demo.
+If everything reads premium, you're ready for 4 PM. If anything looks off, ask Claude Code for a hot-fix in the remaining buffer time.

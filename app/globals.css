@@ -7,6 +7,9 @@
     --background: 0 0% 98%;
     --foreground: 210 39% 9%;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     @apply border-border;
   }
