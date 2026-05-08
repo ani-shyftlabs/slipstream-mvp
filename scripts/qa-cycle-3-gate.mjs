@@ -185,8 +185,10 @@ try {
   await inviteBtn.click();
   // Wait for refresh
   await broker.waitForFunction(() => !document.querySelector('[role="dialog"]'), { timeout: 15000 }).catch((e) => fail.push(`dialog never closed: ${e.message}`));
+  // Hard reload so we see the post-invite state (activities + status change)
+  await broker.reload({ waitUntil: "domcontentloaded" });
   await broker.waitForLoadState("networkidle");
-  log(`  modal closed, url=${broker.url()}`);
+  log(`  modal closed + reloaded, url=${broker.url()}`);
 
   // Gate 5 — status changed draft → active
   log("\n[5b] status now active");
