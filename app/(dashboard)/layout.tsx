@@ -14,13 +14,12 @@ export default async function DashboardLayout({
   if (!ctx) redirect("/login");
 
   const { user, profile, role } = ctx;
-  const homeHref = `/${role}/dashboard`;
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="h-[52px] bg-navy text-white flex items-center px-6 shrink-0">
         <Link
-          href={homeHref}
+          href="/"
           className="font-serif text-2xl tracking-wide text-white"
         >
           Slipstream

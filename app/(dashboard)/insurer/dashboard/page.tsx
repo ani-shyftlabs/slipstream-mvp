@@ -1,16 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { getCurrentProfile } from "@/lib/queries/profile";
-import { createClient } from "@/lib/supabase/server";
+import { getBoundDealRooms } from "@/lib/queries/deal-rooms";
+import type { DealRoomStatusEnum } from "@/lib/constants/coverage-types";
 
 export default async function InsurerDashboardPage() {
   const ctx = await getCurrentProfile();
-  const supabase = createClient();
-
-  const { data: rooms } = await supabase
-    .from("deal_rooms")
-    .select("id, insured_name, status, created_at")
-    .eq("status", "bound")
-    .order("created_at", { ascending: false });
+  const rooms = await getBoundDealRooms();
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,22 +22,31 @@ export default async function InsurerDashboardPage() {
           <CardTitle>Bound deals</CardTitle>
         </CardHeader>
         <CardContent>
-          {rooms && rooms.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {rooms.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between border-b border-silver/60 pb-2 last:border-0 last:pb-0"
-                >
-                  <span className="font-sans text-sm text-ink">{r.insured_name}</span>
-                  <span className="font-mono text-xs uppercase text-success">{r.status}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
+          {rooms.length === 0 ? (
             <p className="font-sans text-sm text-ink/60">
               Bound deals will appear here once brokers select winning quotes.
             </p>
+          ) : (
+            <ul className="flex flex-col">
+              {rooms.map((r) => (
+                <li
+                  key={r.id}
+                  className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-2 py-3 border-b border-silver/60 last:border-0"
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-serif text-base text-navy truncate">
+                      {r.insured_name}
+                    </span>
+                    <span className="font-sans text-xs text-ink/60">
+                      {r.class_of_business}
+                      {r.location ? ` · ${r.location}` : ""}
+                    </span>
+                  </div>
+                  <StatusBadge status={r.status as DealRoomStatusEnum} />
+                  <span className="font-mono text-[11px] text-success">BOUND</span>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>
