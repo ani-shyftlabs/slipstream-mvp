@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { adminSupabase } from "@/lib/supabase/admin";
 import { logActivity } from "@/lib/utils/activity";
 
 const inviteSchema = z.object({
@@ -43,11 +44,17 @@ export async function inviteParty(formData: FormData): Promise<InviteResult> {
   }
 
   // Verify the invited user has a profile + a compatible role.
-  const { data: invited } = await supabase
+  // Use admin client because profiles RLS scopes the broker to "self + shared
+  // members" — the invitee is not yet a shared member, so a standard read returns null.
+  // Authorisation already enforced above (caller owns the room).
+  const { data: invitedRaw } = await adminSupabase()
     .from("profiles")
     .select("id, role, full_name, email")
     .eq("id", parsed.data.party_user_id)
     .maybeSingle();
+  const invited = invitedRaw as
+    | { id: string; role: string; full_name: string | null; email: string }
+    | null;
   if (!invited) return { data: null, error: "That user does not exist." };
   if (invited.role !== parsed.data.role) {
     return {

@@ -167,17 +167,24 @@ try {
 
   // Gate 5 — Invite Party
   log("\n[5] invite party modal");
+  broker.on("console", (msg) => log(`    [page console.${msg.type()}] ${msg.text()}`));
+  broker.on("response", async (r) => {
+    if (r.request().method() === "POST" && r.url().endsWith(broker.url().split("?")[0])) {
+      log(`    [invite POST] ${r.status()} ${r.url()}`);
+    }
+  });
   await broker.click('button:has-text("+ Invite Party")');
   await broker.waitForSelector('[role="dialog"]', { timeout: 5000 });
-  // MGA radio is default-selected. Open Select via its combobox role (Radix).
   await broker.locator('[role="dialog"] [role="combobox"]').first().click();
-  await broker.click('div[role="option"]:has-text("Demo MGA")');
-  await Promise.all([
-    broker.waitForResponse((r) => r.url().includes("/broker/quotes/") && r.request().method() === "POST", { timeout: 15000 }).catch(() => null),
-    broker.click('[role="dialog"] button:has-text("Invite")'),
-  ]);
+  await broker.waitForSelector('[role="listbox"]', { timeout: 5000 });
+  await broker.getByRole("option", { name: /Demo MGA/i }).click();
+  // give state a tick to propagate
+  await broker.waitForTimeout(300);
+  const inviteBtn = broker.locator('[role="dialog"] button:has-text("Invite")').last();
+  log(`  Invite button disabled?`, await inviteBtn.isDisabled());
+  await inviteBtn.click();
   // Wait for refresh
-  await broker.waitForFunction(() => !document.querySelector('[role="dialog"]'), { timeout: 10000 });
+  await broker.waitForFunction(() => !document.querySelector('[role="dialog"]'), { timeout: 15000 }).catch((e) => fail.push(`dialog never closed: ${e.message}`));
   await broker.waitForLoadState("networkidle");
   log(`  modal closed, url=${broker.url()}`);
 
