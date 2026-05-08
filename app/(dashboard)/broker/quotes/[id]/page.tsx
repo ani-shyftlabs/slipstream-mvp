@@ -7,10 +7,12 @@ import { InvitePartyModal } from "@/components/quotes/invite-party-modal";
 import { QuotesList } from "@/components/quotes/quotes-list";
 import { ExportComplianceButton } from "@/components/quotes/export-compliance-button";
 import { CloseDealModal } from "@/components/quotes/close-deal-modal";
+import { TowerVisualization } from "@/components/quotes/tower-visualization";
 import { getDealRoomDetail } from "@/lib/queries/deal-rooms";
 import { getQuotesForDealRoom } from "@/lib/queries/quotes";
 import { getInvitablePartyProfiles } from "@/lib/queries/profiles";
 import { getCurrentProfile } from "@/lib/queries/profile";
+import { DEMO_TOWER } from "@/lib/data/demo-tower";
 import type { DealRoomStatusEnum } from "@/lib/constants/coverage-types";
 
 function formatCurrency(n: number | null | undefined): string {
@@ -43,6 +45,8 @@ export default async function BrokerDealRoomDetailPage({
     getQuotesForDealRoom(room.id),
   ]);
 
+  const isTowerRoom = room.insured_name === DEMO_TOWER.insured;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
@@ -50,6 +54,11 @@ export default async function BrokerDealRoomDetailPage({
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-serif text-3xl text-navy break-words">{room.insured_name}</h1>
             <StatusBadge status={status} />
+            {isTowerRoom && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-sans font-medium uppercase tracking-wider bg-gold/20 text-warning border border-gold/40">
+                Tower Placement
+              </span>
+            )}
           </div>
           <p className="font-mono text-xs text-ink/60 mt-1">DR-{room.id.slice(0, 8).toUpperCase()}</p>
         </div>
@@ -63,6 +72,7 @@ export default async function BrokerDealRoomDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <div className="flex flex-col gap-6 min-w-0">
+          {isTowerRoom && <TowerVisualization data={DEMO_TOWER} />}
           <Card>
             <CardHeader>
               <CardTitle>Submission</CardTitle>

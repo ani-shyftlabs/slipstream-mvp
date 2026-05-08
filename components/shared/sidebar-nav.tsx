@@ -7,7 +7,6 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   broker: [
     { href: "/broker/dashboard", label: "Dashboard" },
     { href: "/broker/quotes", label: "Deal Rooms" },
-    { href: "/broker/tower-demo", label: "Tower Demo" },
     { href: "/broker/directory", label: "Markets Directory" },
   ],
   mga: [
