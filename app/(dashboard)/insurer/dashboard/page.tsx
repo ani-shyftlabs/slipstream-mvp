@@ -1,36 +1,29 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/queries/profile";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function BrokerDashboardPage() {
+export default async function InsurerDashboardPage() {
   const ctx = await getCurrentProfile();
   const supabase = createClient();
 
-  // Visible deal rooms — broker sees their own; RLS handles the gate.
   const { data: rooms } = await supabase
     .from("deal_rooms")
     .select("id, insured_name, status, created_at")
+    .eq("status", "bound")
     .order("created_at", { ascending: false });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-3xl text-navy">Broker Dashboard</h1>
-          <p className="font-sans text-sm text-ink/70 mt-1">
-            Welcome, {ctx?.profile?.full_name ?? ctx?.user.email}.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/broker/quotes/new">+ New Deal Room</Link>
-        </Button>
+      <div>
+        <h1 className="font-serif text-3xl text-navy">Insurer Dashboard</h1>
+        <p className="font-sans text-sm text-ink/70 mt-1">
+          Welcome, {ctx?.profile?.full_name ?? ctx?.user.email}.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Your deal rooms</CardTitle>
+          <CardTitle>Bound deals</CardTitle>
         </CardHeader>
         <CardContent>
           {rooms && rooms.length > 0 ? (
@@ -41,15 +34,13 @@ export default async function BrokerDashboardPage() {
                   className="flex items-center justify-between border-b border-silver/60 pb-2 last:border-0 last:pb-0"
                 >
                   <span className="font-sans text-sm text-ink">{r.insured_name}</span>
-                  <span className="font-mono text-xs uppercase text-ink/60">
-                    {r.status}
-                  </span>
+                  <span className="font-mono text-xs uppercase text-success">{r.status}</span>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="font-sans text-sm text-ink/60">
-              Your deal rooms will appear here. Click <span className="font-medium">+ New Deal Room</span> to create your first.
+              Bound deals will appear here once brokers select winning quotes.
             </p>
           )}
         </CardContent>

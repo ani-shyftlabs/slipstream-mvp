@@ -1,12 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/queries/profile";
 
 export default async function Home() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) redirect("/broker/dashboard");
-  redirect("/login");
+  const ctx = await getCurrentProfile();
+  if (!ctx) redirect("/login");
+  redirect(`/${ctx.role}/dashboard`);
 }
