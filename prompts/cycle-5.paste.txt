@@ -1,0 +1,72 @@
+Starting Cycle 5 — final polish and smoke test. Cycle 4 is green; full demo flow works.
+
+CYCLE 5 GOAL: A demo-ready live URL. Screens are not empty, loading states are graceful, demo accounts work first try.
+
+CYCLE 5 GATE (qa-senior verifies):
+1. Live URL has 3 sample deal rooms in different states (one Draft, one Active with quote, one Closed) so dashboards aren't empty for casual demo of "scrolling around"
+2. Empty states have friendly copy, not blank screens
+3. Loading skeletons appear during route transitions (or at least no UI flicker)
+4. Error toasts work for at least one failure path
+5. The bind+export+close buttons all work without errors
+6. The full demo flow (create→invite→quote→bind→close) runs in under 4 minutes with no errors
+7. Live URL works on iPhone Safari (basic responsiveness — sidebar can be hidden, content stacks)
+8. Three demo accounts open in three browser tabs, all logged in, ready to demo
+
+Spawn a SMALLER crew for polish — pm-lead, backend-2 (extra seed data), ui-1 + ui-2 (polish), qa-senior. ONE message.
+
+AGENTS TO SPAWN:
+
+1. name: "pm-lead", subagent_type: "hierarchical-coordinator"
+   Prompt: |
+     You are pm-lead. Cycle 5 is polish + final smoke test. Read CLAUDE.md.
+     Sequence: backend-2 seeds extra demo data → ui-1 + ui-2 polish in parallel → qa-senior final dry run on live URL → human-facing summary.
+     Stop rule: 20 min elapsed since cycle start = HARD STOP. Whatever is done is done. Better to demo what works.
+
+2. name: "backend-2", subagent_type: "backend-dev"
+   Prompt: |
+     You are backend-2. Wait for [ASSIGN].
+     Extend supabase/seed.sql (or write a new seed-extras.ts script) to insert:
+     - 3 sample deal rooms owned by broker@demo.com:
+       * "Westbrook Industrial Holdings Ltd" — Property — Ontario — $25M — status='draft'
+       * "Cresthill Industries Ltd" — Cyber — Quebec — $10M — status='active' — with mga@demo.com invited and one quote submitted (premium 145000, status 'submitted')
+       * "Northgate Group Inc" — D&O — Alberta — $7.5M — status='closed' — with mga@demo.com invited, quote submitted (premium 95000, status 'won'), insurer@demo.com invited, full activity log
+     - All three have realistic activity log entries (created, invited, quote_submitted, bound, closed where applicable)
+     Run the seed script against the live Supabase project.
+     SendMessage pm-lead [DONE] with confirmation of row counts.
+
+3. name: "ui-1", subagent_type: "coder"
+   Prompt: |
+     You are ui-1. Wait for [ASSIGN].
+     Polish:
+     a) Add Suspense boundaries with loading.tsx files at /(dashboard)/broker, /mga, /insurer routes — render a skeleton card grid
+     b) Empty states: if dashboard list is empty, show a centered card with serif heading "No deal rooms yet" + DM Sans subtitle + CTA. Use brand colors.
+     c) Add hover transitions to deal-room cards (subtle shadow lift, 200ms)
+     d) Verify topbar is responsive: at width < 768px, hide the breadcrumb; at < 640px, hide the role badge text (keep the dot)
+     e) Verify sidebar collapses (hamburger toggle) on mobile
+     SendMessage pm-lead [DONE].
+
+4. name: "ui-2", subagent_type: "coder"
+   Prompt: |
+     You are ui-2. Wait for [ASSIGN].
+     Polish:
+     a) Add error.tsx in /(dashboard) showing a friendly "Something went wrong" with a Retry button
+     b) Form validation errors styled in error red with DM Sans
+     c) Success toasts on create / invite / submit / bind / close (shadcn useToast)
+     d) Make sure the export-compliance JSON download has a useful filename: slipstream-<insured-slug>-<date>.json
+     e) Confirmation modals for destructive actions (close deal room) have brand-styled buttons (Cancel = silver outline, Confirm = navy primary)
+     SendMessage pm-lead [DONE].
+
+5. name: "qa-senior", subagent_type: "tester"
+   Prompt: |
+     You are qa-senior. Wait for [ASSIGN].
+     Final dry run on the live URL:
+     1. Hard refresh in three incognito tabs; sign in as broker / mga / insurer
+     2. From scratch, create new deal room "Demo Co" → invite mga + insurer → submit quote as MGA → review + bind as broker → export JSON → close
+     3. Time the flow: target < 4 minutes
+     4. Check on iPhone Safari (or use Chrome devtools mobile emulation): all three dashboards render without horizontal scroll
+     5. Check the seeded deal rooms appear in broker dashboard with correct statuses
+     6. Verify each demo account works on first sign-in
+     7. List any rough edges (typos, alignment issues) for human to decide whether to fix or accept
+     SendMessage pm-lead [QA-PASS] with full demo recording transcript, or [QA-FAIL] with list of demo-blockers.
+
+After spawning, SendMessage pm-lead [ASSIGN] "Begin Cycle 5 — Polish + Smoke Test".
