@@ -1,31 +1,35 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { getCurrentProfile } from "@/lib/queries/profile";
-import { getBoundDealRooms } from "@/lib/queries/deal-rooms";
+import { getMyDealRooms } from "@/lib/queries/deal-rooms";
 import type { DealRoomStatusEnum } from "@/lib/constants/coverage-types";
 
-export default async function InsurerDashboardPage() {
-  const ctx = await getCurrentProfile();
-  const rooms = await getBoundDealRooms();
+export default async function BrokerDealRoomsPage() {
+  const rooms = await getMyDealRooms();
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-serif text-3xl text-navy">Insurer Dashboard</h1>
-        <p className="font-sans text-sm text-ink/70 mt-1">
-          Welcome, {ctx?.profile?.full_name ?? ctx?.user.email}.
-        </p>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-serif text-3xl text-navy">Deal Rooms</h1>
+          <p className="font-sans text-sm text-ink/70 mt-1">
+            All placements you own. Click a row to open the deal room.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/broker/quotes/new">+ New Deal Room</Link>
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Bound deals</CardTitle>
+          <CardTitle>{rooms.length} deal room{rooms.length === 1 ? "" : "s"}</CardTitle>
         </CardHeader>
         <CardContent>
           {rooms.length === 0 ? (
             <p className="font-sans text-sm text-ink/60">
-              Bound deals will appear here once brokers select winning quotes.
+              No deal rooms yet. Create one to start collecting structured submissions.
             </p>
           ) : (
             <ul className="flex flex-col">
@@ -35,11 +39,11 @@ export default async function InsurerDashboardPage() {
                   className="border-b border-silver/60 last:border-0 transition-colors hover:bg-silver/20"
                 >
                   <Link
-                    href={`/insurer/quotes/${r.id}`}
+                    href={`/broker/quotes/${r.id}`}
                     className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-2 py-3"
                   >
                     <div className="flex flex-col min-w-0">
-                      <span className="font-serif text-base text-navy truncate">
+                      <span className="font-serif text-lg text-navy truncate">
                         {r.insured_name}
                       </span>
                       <span className="font-sans text-xs text-ink/60">

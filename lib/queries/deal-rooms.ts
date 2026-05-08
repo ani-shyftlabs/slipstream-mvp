@@ -32,12 +32,14 @@ export async function getInvitedDealRooms(): Promise<DealRoomListItem[]> {
   return (data as DealRoomListItem[] | null) ?? [];
 }
 
+// Insurer view: rooms they're a party in that have been bound or closed.
+// RLS already scopes to rooms-they're-a-party-in via the standard policy.
 export async function getBoundDealRooms(): Promise<DealRoomListItem[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("deal_rooms")
     .select("id, insured_name, class_of_business, location, status, created_at")
-    .eq("status", "bound")
+    .in("status", ["bound", "closed"])
     .order("created_at", { ascending: false });
   return (data as DealRoomListItem[] | null) ?? [];
 }

@@ -3,14 +3,8 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ActivityFeed } from "@/components/shared/activity-feed";
-import { InvitePartyModal } from "@/components/quotes/invite-party-modal";
-import { QuotesList } from "@/components/quotes/quotes-list";
-import { ExportComplianceButton } from "@/components/quotes/export-compliance-button";
-import { CloseDealModal } from "@/components/quotes/close-deal-modal";
 import { getDealRoomDetail } from "@/lib/queries/deal-rooms";
-import { getQuotesForDealRoom } from "@/lib/queries/quotes";
-import { getInvitablePartyProfiles } from "@/lib/queries/profiles";
-import { getCurrentProfile } from "@/lib/queries/profile";
+import { getWinningQuoteForViewer } from "@/lib/queries/quotes";
 import type { DealRoomStatusEnum } from "@/lib/constants/coverage-types";
 
 function formatCurrency(n: number | null | undefined): string {
@@ -22,26 +16,13 @@ function formatCurrency(n: number | null | undefined): string {
   }).format(Number(n));
 }
 
-export default async function BrokerDealRoomDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function InsurerDealRoomPage({ params }: { params: { id: string } }) {
   const detail = await getDealRoomDetail(params.id);
   if (!detail) notFound();
   const { room, parties, activities } = detail;
-
-  const ctx = await getCurrentProfile();
-  const isOwningBroker = ctx?.role === "broker" && ctx?.user.id === room.broker_id;
   const status = room.status as DealRoomStatusEnum;
-  const canInvite = isOwningBroker && (status === "draft" || status === "active");
-  const canExport = isOwningBroker && (status === "bound" || status === "closed");
-  const canClose = isOwningBroker && status === "bound";
 
-  const [invitable, quotes] = await Promise.all([
-    canInvite ? getInvitablePartyProfiles(room.id) : Promise.resolve([]),
-    getQuotesForDealRoom(room.id),
-  ]);
+  const winning = await getWinningQuoteForViewer(room.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,14 +31,17 @@ export default async function BrokerDealRoomDetailPage({
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-serif text-3xl text-navy break-words">{room.insured_name}</h1>
             <StatusBadge status={status} />
+            <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-silver text-ink">
+              READ-ONLY
+            </span>
           </div>
           <p className="font-mono text-xs text-ink/60 mt-1">DR-{room.id.slice(0, 8).toUpperCase()}</p>
         </div>
         <Link
-          href="/broker/quotes"
+          href="/insurer/dashboard"
           className="text-sm font-sans text-ink/60 hover:text-ink underline-offset-4 hover:underline shrink-0"
         >
-          ← All deal rooms
+          ← All bound deals
         </Link>
       </div>
 
@@ -73,16 +57,6 @@ export default async function BrokerDealRoomDetailPage({
                 <Field label="Coverage type" value={room.coverage_type} />
                 <Field label="Location" value={room.location ?? "—"} />
                 <Field label="Coverage amount" value={formatCurrency(room.coverage_amount)} mono />
-                <Field
-                  label="Created"
-                  value={new Date(room.created_at).toISOString().slice(0, 19).replace("T", " ")}
-                  mono
-                />
-                <Field
-                  label="Last updated"
-                  value={new Date(room.updated_at).toISOString().slice(0, 19).replace("T", " ")}
-                  mono
-                />
                 {room.notes && (
                   <div className="col-span-2 flex flex-col gap-1">
                     <dt className="text-[11px] uppercase tracking-wider font-sans text-ink/50">Notes</dt>
@@ -93,33 +67,38 @@ export default async function BrokerDealRoomDetailPage({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Quotes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <QuotesList
-                dealRoomId={room.id}
-                roomStatus={status}
-                isOwningBroker={isOwningBroker}
-                quotes={quotes}
-              />
-            </CardContent>
-          </Card>
+          {winning && (
+            <Card className="border-success/40">
+              <CardHeader>
+                <CardTitle>Winning quote</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-sans text-sm text-ink mb-3">
+                  Bound to <strong>{winning.party?.profile?.full_name ?? "an MGA"}</strong>
+                  {winning.party?.profile?.org_name ? ` (${winning.party.profile.org_name})` : ""}.
+                </p>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <Field label="Premium" value={formatCurrency(winning.premium as unknown as number)} mono />
+                  <Field label="Deductible" value={formatCurrency(winning.deductible as unknown as number)} mono />
+                  <Field label="Coverage limit" value={formatCurrency(winning.coverage_limit as unknown as number)} mono />
+                </dl>
+                {winning.terms && (
+                  <div className="flex flex-col gap-1 mt-4">
+                    <dt className="text-[11px] uppercase tracking-wider font-sans text-ink/50">Terms</dt>
+                    <dd className="text-sm font-sans text-ink whitespace-pre-wrap">{winning.terms}</dd>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle>Parties</CardTitle>
-              {canInvite && (
-                <InvitePartyModal dealRoomId={room.id} invitable={invitable} />
-              )}
             </CardHeader>
             <CardContent>
               {parties.length === 0 ? (
-                <p className="text-sm font-sans text-ink/60">
-                  No parties invited yet.
-                  {canInvite && " Click + Invite Party to add an MGA or insurer."}
-                </p>
+                <p className="text-sm font-sans text-ink/60">No parties on this room.</p>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {parties.map((p) => (
@@ -146,28 +125,6 @@ export default async function BrokerDealRoomDetailPage({
               )}
             </CardContent>
           </Card>
-
-          {(canExport || canClose) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Compliance</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-3">
-                {canExport && (
-                  <ExportComplianceButton
-                    dealRoomId={room.id}
-                    insuredName={room.insured_name}
-                  />
-                )}
-                {canClose && <CloseDealModal dealRoomId={room.id} />}
-                {status === "closed" && (
-                  <p className="font-sans text-sm text-ink/60">
-                    This deal room is closed. The export above remains available for the audit record.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <aside>
@@ -197,11 +154,7 @@ function Field({
   return (
     <div className="flex flex-col gap-1 min-w-0">
       <dt className="text-[11px] uppercase tracking-wider font-sans text-ink/50">{label}</dt>
-      <dd
-        className={
-          mono ? "text-sm font-mono text-ink truncate" : "text-sm font-sans text-ink truncate"
-        }
-      >
+      <dd className={mono ? "text-sm font-mono text-ink truncate" : "text-sm font-sans text-ink truncate"}>
         {value}
       </dd>
     </div>
